@@ -1,15 +1,18 @@
 # The code for the DCGAN generative model is taken from the official PyTorch docs https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html.
 
-import sys
 import argparse
+import json
+import logging
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import matplotlib.image as mpimg
+import numpy as np
 import os
 import random
 from pathlib import Path
+import pickle
+import sys
 import time
-import numpy as np
-# import matplotlib.pyplot as plt
-# import matplotlib.animation as animation
-# import matplotlib.image as mpimg
 
 import torch
 import torch.nn as nn
@@ -26,11 +29,11 @@ def get_input(local=False):
         print("Reading local punks directory.")
 
         # Root directory for dataset
-        dataroot = Path('data/punks')
-        # dataroot = Path('data/punks-sample')
-        # dataroot = Path('data/celeba')
+        filename = Path('data/punks/tealpunks')
+        # filename = Path('data/punks-sample')
+        # filename = Path('data/celeba')
 
-        return dataroot
+        return filename
 
     dids = os.getenv('DIDS', None)
 
@@ -40,9 +43,17 @@ def get_input(local=False):
 
     dids = json.loads(dids)
 
+    cwd = os.getcwd()
+    print('cwd', cwd)
+    
+
     for did in dids:
-        filename = f'data/inputs/{did}/0'  # 0 for metadata service
+        print('ls', f'/data/inputs/{did}/0')
+        print('ls2', os.listdir(f'/data/inputs/'))
+        filename = Path(f'/data/inputs/{did}/0')  # 0 for metadata service
         print(f"Reading asset file {filename}.")
+        # print('type', type(os.listdir(f'/data/inputs/{did}/0/')[0]))
+
 
         return filename
 
@@ -50,28 +61,37 @@ def run_dcgan(local=False):
 
     t0 = time.time()
 
-    dataroot = get_input(local)
-    if not dataroot:
-        print("Could not retrieve dataroot.")
+    filename = get_input(local)
+    if not filename:
+        print("Could not retrieve filename.")
         return
 
-    teal_dir = dataroot / "tealpunks"
+    from PIL import Image
+    with open(filename) as datafile:
+        print(type(datafile))
+        print(datafile)
+        datafile.seek(0)
+        img = Image.open(datafile)
+        print('@@@', img)
 
-    # clear_images = sorted(list(clear_dir.glob('*')))
-    teal_images = sorted(list(teal_dir.glob('*')))
+
+    teal_images = sorted(list(filename.glob('*')))
+
+    print(teal_images)
 
     results_dir = Path('results')
 
     if not results_dir.exists():
         results_dir.mkdir()
 
-    # img0 = mpimg.imread(teal_images[0])
-    # img1 = mpimg.imread(teal_images[1])
-    # fig, ax = plt.subplots(1,2)
-    # ax[0].imshow(img0)
-    # ax[1].imshow(img1)
-    # [a.axis('off') for a in ax]
-    # plt.savefig(results_dir / "sample.png")
+    if local:
+        img0 = mpimg.imread(teal_images[0])
+        img1 = mpimg.imread(teal_images[1])
+        fig, ax = plt.subplots(1,2)
+        ax[0].imshow(img0)
+        ax[1].imshow(img1)
+        [a.axis('off') for a in ax]
+        plt.savefig(results_dir / "sample.png")
 
     # Set random seed for reproducibility
     manualSeed = 999
@@ -88,14 +108,14 @@ def run_dcgan(local=False):
     nz = 100
     ngf = 64
     ndf = 64
-    num_epochs = 1
+    num_epochs = 5
     lr = 0.0002
     beta1 = 0.5
     ngpu = 1
 
     # We can use an image folder dataset the way we have it setup.
     # Create the dataset
-    dataset = dset.ImageFolder(root=dataroot,
+    dataset = dset.ImageFolder(root=filename.parent,
                             transform=transforms.Compose([
                                 transforms.Resize(image_size),
                                 transforms.CenterCrop(image_size),
@@ -302,25 +322,31 @@ def run_dcgan(local=False):
 
             iters += 1
 
-    # plt.figure(figsize=(10,5))
-    # plt.title("Generator and Discriminator Loss During Training")
-    # plt.plot(G_losses,label="G")
-    # plt.plot(D_losses,label="D")
-    # plt.xlabel("iterations")
-    # plt.ylabel("Loss")
-    # plt.legend()
-    # plt.savefig(results_dir / "loss.png")
+    if local:
+        plt.figure(figsize=(10,5))
+        plt.title("Generator and Discriminator Loss During Training")
+        plt.plot(G_losses,label="G")
+        plt.plot(D_losses,label="D")
+        plt.xlabel("iterations")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.savefig(results_dir / "loss.png")
 
-    # #%%capture
-    # fig = plt.figure(figsize=(20,20))
-    # plt.axis("off")
-    # ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in img_list]
-    # # ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
+        #%%capture
+        fig = plt.figure(figsize=(20,20))
+        plt.axis("off")
+        ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in img_list]
+        # ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
 
-    # fig = plt.figure(figsize=(20,20))
-    # plt.axis("off")
-    # plt.imshow(img_list[-1].permute(1,2,0))
-    # plt.savefig(results_dir / "gen.png")
+        fig = plt.figure(figsize=(20,20))
+        plt.axis("off")
+        plt.imshow(img_list[-1].permute(1,2,0))
+        plt.savefig(results_dir / "gen.png")
+
+    filename = results_dir / 'punks.pickle' if local else "/data/outputs/result"
+    with open(filename, 'wb') as pickle_file:
+        print(f"Pickling results in {filename}")
+        pickle.dump(img_list[-1], pickle_file)
 
     t1 = time.time()
     total = t1-t0
